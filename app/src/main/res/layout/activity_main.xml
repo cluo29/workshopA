@@ -11,9 +11,11 @@
         android:id="@+id/togglebutton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textOn="Stop Play"
-        android:textOff="Start Play"
+        android:textOn="Stop Train"
+        android:textOff="Start Train"
         android:onClick="onToggleClicked"/>
+
+
 
     <TextView
         android:layout_width="wrap_content"
@@ -102,13 +104,22 @@
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
         android:textColor="#ff375fff" />
-
+    <ToggleButton
+        android:id="@+id/hearbutton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textOn="Stop Play"
+        android:textOff="Start Play"
+        android:layout_below="@+id/Output"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:onClick="onHearClicked"/>
     <RadioGroup
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:layout_below="@+id/Output"
+        android:layout_below="@+id/hearbutton"
         android:id="@+id/label_group">
 
         <RadioButton
@@ -132,5 +143,6 @@
             android:id="@+id/other"
             android:onClick="onRadioButtonClicked" />
     </RadioGroup>
+
 
 </RelativeLayout>

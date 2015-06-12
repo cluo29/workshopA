@@ -54,7 +54,7 @@ public class MainActivity extends ActionBarActivity {
     public static final int UPDATE_THE_VOLUME = 0;
     public VolumeHandler volumeHandler;
     public static boolean isPlayed = false;
-
+    public static int isTrain=-1;
     //Accelerometer
     public static double acc_x=0;
     public static double acc_y=0;
@@ -108,6 +108,7 @@ public class MainActivity extends ActionBarActivity {
 
 
                 //how is noise
+                double volume_suggestion =0;
 
                 int buffer_size = AudioRecord.getMinBufferSize(AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT ) * 10;
                 AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, buffer_size);
@@ -310,9 +311,9 @@ public class MainActivity extends ActionBarActivity {
                     }
                     prob1.y[i] = features[0];
                 }
-                Log.d("sensors_data","so far so good318" );
+                Log.d("sensors_data","so far so good313" );
                 model = svm.svm_train(prob1, para1);
-                Log.d("sensors_data","model seems cool" );
+                Log.d("sensors_data","model seems cool 315" );
 
 
                 svm_node node1 = new svm_node();
@@ -416,15 +417,16 @@ public class MainActivity extends ActionBarActivity {
                         }
                         prob_ear.y[i] = features[0];
                     }
-
+                    Log.d("sensors_data","419" );
                     svm_model model_ear = svm.svm_train(prob_ear, para_ear);
+                    Log.d("sensors_data","421" );
                     svm_node node_ear = new svm_node();
                     node_ear.index=1;
                     node_ear.value=microphone;
                     svm_node[] pred_ear = new svm_node[2];
                     pred_ear[0]=node_ear;
-                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_ear,pred_ear);
-
+                    volume_suggestion= svm.svm_predict(model_ear,pred_ear);
+                    class_phone=class_phone+ "; Good Vol is: "+ volume_suggestion;
                 }
                 else if(prediction>1.9)
                 {
@@ -502,14 +504,16 @@ public class MainActivity extends ActionBarActivity {
                         }
                         prob_other.y[i] = features[0];
                     }
-
+                    Log.d("sensors_data","505" );
                     svm_model model_other = svm.svm_train(prob_other, para_other);
+                    Log.d("sensors_data","507" );
                     svm_node node_other = new svm_node();
                     node_other.index=1;
                     node_other.value=microphone;
                     svm_node[] pred_other = new svm_node[2];
                     pred_other[0]=node_other;
-                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_other,pred_other);
+                    volume_suggestion= svm.svm_predict(model_other,pred_other);
+                    class_phone=class_phone+ "; Good Vol is: "+ volume_suggestion;
                 }
                 else
                 {
@@ -586,17 +590,30 @@ public class MainActivity extends ActionBarActivity {
                         }
                         prob_table.y[i] = features[0];
                     }
-
+                    Log.d("sensors_data","590" );
                     svm_model model_table = svm.svm_train(prob_table, para_table);
+                    Log.d("sensors_data","592" );
                     svm_node node_table = new svm_node();
                     node_table.index=1;
                     node_table.value=microphone;
                     svm_node[] pred_table = new svm_node[2];
                     pred_table[0]=node_table;
-                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_table,pred_table);
+                    volume_suggestion=svm.svm_predict(model_table,pred_table);
+                    class_phone=class_phone+ "; Good Vol is: "+ volume_suggestion;
+
                 }
 
+
+
                 Log.d("Results", "Mode: " + class_phone);
+
+                int value1 = (int)volume_suggestion;
+
+                if (value1<0)
+                    value1 = 0;
+                if (value1>15)
+                    value1 = 15;
+                final int value = value1;
 
                 final String result=""+class_phone;
 
@@ -604,6 +621,21 @@ public class MainActivity extends ActionBarActivity {
                     @Override
                     public void run() {
                         Text_Output.setText(""+result);
+
+                        if(isTrain==3) {
+                            int current_volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+
+                            while (value != current_volume) {
+                                if (value < current_volume) {
+                                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
+                                } else {
+                                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
+
+                                }
+                                current_volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+
+                            }
+                        }
 
                     }
                 });
@@ -724,13 +756,14 @@ public class MainActivity extends ActionBarActivity {
         sendBroadcast(new Intent(Aware.ACTION_AWARE_REFRESH));
     }
 
-    //Listener for tougle button start/stop play
+    //Listener for tougle button start/stop train
     public void onToggleClicked(View view) {
         // Is the toggle on?
         boolean on = ((ToggleButton) view).isChecked();
-        Log.d("PLAYER", "Button toggled");
+        Log.d("PLAYER Train", "Button toggled");
         if (on) {
-            // Start play
+            // Start train
+            isTrain=1;
 
             mediaPlayer = MediaPlayer.create(this, R.raw.song);
             mediaPlayer.start();
@@ -755,15 +788,54 @@ public class MainActivity extends ActionBarActivity {
             getContentResolver().insert(Provider.Smart_Volume_Data.CONTENT_URI, data);*/
 
         } else {
-            // Stop play
+            // Stop train
             mediaPlayer.stop();
             mediaPlayer.release();
             mediaPlayer = null;
+            isTrain=2;
 
 
 
 
             isPlayed = false;
+        }
+    }
+    //Listener for tougle button start/stop play
+    public void onHearClicked(View view) {
+        // Is the toggle on?
+        boolean on = ((ToggleButton) view).isChecked();
+        Log.d("PLAYER", "Button toggled");
+        if (on) {
+            // Start play
+            isTrain=3;
+            mediaPlayer = MediaPlayer.create(this, R.raw.song);
+            mediaPlayer.start();
+
+
+
+            /*
+            ContentValues data = new ContentValues();
+            data.put(Provider.Smart_Volume_Data.TIMESTAMP, System.currentTimeMillis());
+            data.put(Provider.Smart_Volume_Data.DEVICE_ID, Aware.getSetting(this, Aware_Preferences.DEVICE_ID));
+            data.put(Provider.Smart_Volume_Data.A_VALUES_0,0);
+            data.put(Provider.Smart_Volume_Data.A_VALUES_1,0);
+            data.put(Provider.Smart_Volume_Data.A_VALUES_2,0);
+            data.put(Provider.Smart_Volume_Data.R_VALUES_0,0);
+            data.put(Provider.Smart_Volume_Data.R_VALUES_1,0);
+            data.put(Provider.Smart_Volume_Data.R_VALUES_2,0);
+            data.put(Provider.Smart_Volume_Data.LUX,0);
+            data.put(Provider.Smart_Volume_Data.PROXIMITY,0);
+            data.put(Provider.Smart_Volume_Data.MICROPHONE,0);
+            data.put(Provider.Smart_Volume_Data.VOLUME,0);
+
+            getContentResolver().insert(Provider.Smart_Volume_Data.CONTENT_URI, data);*/
+
+        } else {
+            // Stop play
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer = null;
+            isTrain=2;
         }
     }
 
