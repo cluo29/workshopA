@@ -70,7 +70,7 @@ public class MainActivity extends ActionBarActivity {
     public static double light=0;
     public static long timestamp_lig;
     //proximity
-    public static double proximity=0;
+    public static double proximity=100;
     public static long timestamp_prx;
     //microphone
     public static double microphone=0;
@@ -84,10 +84,12 @@ public class MainActivity extends ActionBarActivity {
     private boolean prox_cache = false;
     private String label;  //'ear'=0 'table'=1 'other'=2
 
-    public static double[][] sensors_data = new double[60][7];
+    public static int sample=10;
+
+    public static double[][] sensors_data = new double[sample*3][6];
     public static int trainingState = 0;// 0 means not trained, 1 in training, 2 training complete
 
-//UI Views
+    //UI Views
     public static RelativeLayout layout;
     public static TextView Text_R_values_0;
     public static TextView Text_R_values_1;
@@ -102,300 +104,520 @@ public class MainActivity extends ActionBarActivity {
     public Thread thread = new Thread(new Runnable() {
         @Override
         public void run() {
-          while (2==2){ //should be trainingState==2
-              //label could be //'ear' 'table' 'other'
-              //for ear training!
-              //'ear'=0 'table'=1 'other'=2
-              int rows_of_data_ear = 0;
-              Cursor cursor_ear = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'ear'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT 20");
-              if (cursor_ear != null && cursor_ear.moveToFirst()) {
-                int i = 0;
-                do{
-                    final double column_r_value_0 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
-                    final double column_r_value_1 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
-                    final double column_r_value_2 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
-                    final double column_lux = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.LUX));
-                    final double column_proximity = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
-                    final double column_microphone = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
-                    final double column_volume = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
-                    //'ear'=0 'table'=1 'other'=2 label
-                    sensors_data[i][0] = 0;
-                    sensors_data[i][1] = column_r_value_0;
-                    sensors_data[i][2] = column_r_value_1;
-                    sensors_data[i][3] = column_r_value_2;
-                    sensors_data[i][4] = column_lux;
-                    sensors_data[i][5] = column_proximity;
-                    sensors_data[i][6] = column_microphone;
-                    //sensors_data[i][7] = column_volume;
-                    i++;
-                    rows_of_data_ear++;
-                    if(i>19){
-                        break;
+            while (2==2){ //should be trainingState==2
+
+
+                //how is noise
+
+                int buffer_size = AudioRecord.getMinBufferSize(AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT ) * 10;
+                AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, buffer_size);
+
+                //Audio data buffer
+                short[] audio_data = new short[buffer_size];
+                double sound_strength=0;
+
+                if( recorder.getState() == AudioRecord.STATE_INITIALIZED ) {
+                    if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
+                        recorder.startRecording();
+                    }
+
+                    double now = System.currentTimeMillis();
+                    double elapsed = 0;
+                    while (elapsed < 700) {
+                        //wait...
+                        elapsed = System.currentTimeMillis() - now;
+
+                    }
+                    recorder.stop();
+                    recorder.read(audio_data, 0, buffer_size);
+
+
+                    if (audio_data.length != 0) {
+                        double amplitude = -1;
+                        for (short data : audio_data) {
+                            if (amplitude < data) {
+                                amplitude = data;
+                            }
+                        }
+                        Log.d("audio", "Recording... "+amplitude);
+                        if(amplitude>0)
+                            sound_strength=amplitude;
                     }
                 }
-                while (cursor_ear.moveToNext());
-              }
-              if (cursor_ear != null && !cursor_ear.isClosed()) {
-                Log.d("SENSORS_DATA_ear","Saved data: " + rows_of_data_ear);
-                cursor_ear.close();
-              }
-              if(rows_of_data_ear<20) //don't do learning, not enough data
-              {
-                  continue;
-              }
-              //label could be //'ear' 'table' 'other'
-              //for table training!
-              //'ear'=0 'table'=1 'other'=2
-              int rows_of_data_table = 0;
-              Cursor cursor_table = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'table'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT 20");
-              if (cursor_table != null && cursor_table.moveToFirst()) {
-                  int i = 20;
-                  do{
-                      final double column_r_value_0 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
-                      final double column_r_value_1 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
-                      final double column_r_value_2 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
-                      final double column_lux = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.LUX));
-                      final double column_proximity = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
-                      final double column_microphone = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
-                      final double column_volume = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
-                      //'ear'=0 'table'=1 'other'=2 label
-                      sensors_data[i][0] = 1;
-                      sensors_data[i][1] = column_r_value_0;
-                      sensors_data[i][2] = column_r_value_1;
-                      sensors_data[i][3] = column_r_value_2;
-                      sensors_data[i][4] = column_lux;
-                      sensors_data[i][5] = column_proximity;
-                      sensors_data[i][6] = column_microphone;
-                      //sensors_data[i][7] = column_volume;
-                      i++;
-                      rows_of_data_table++;
-                      if(i>39){
-                          break;
-                      }
-                  }
-                  while (cursor_table.moveToNext());
-              }
-              if (cursor_table != null && !cursor_table.isClosed()) {
-                  Log.d("SENSORS_DATA_table","Saved data: " + rows_of_data_table);
-                  cursor_table.close();
-              }
-              if(rows_of_data_table<20) //don't do learning, not enough data
-              {
-                  continue;
-              }
-              //label could be //'ear' 'table' 'other'
-              //for other training!
-              int rows_of_data_other = 0;
-              Cursor cursor_other = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'other'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT 20");
-              if (cursor_other != null && cursor_other.moveToFirst()) {
-                  int i = 40;
-                  do{
-                      final double column_r_value_0 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
-                      final double column_r_value_1 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
-                      final double column_r_value_2 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
-                      final double column_lux = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.LUX));
-                      final double column_proximity = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
-                      final double column_microphone = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
-                      final double column_volume = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
-                      //'ear'=0 'table'=1 'other'=2 label
-                      sensors_data[i][0] = 2;
-                      sensors_data[i][1] = column_r_value_0;
-                      sensors_data[i][2] = column_r_value_1;
-                      sensors_data[i][3] = column_r_value_2;
-                      sensors_data[i][4] = column_lux;
-                      sensors_data[i][5] = column_proximity;
-                      sensors_data[i][6] = column_microphone;
-                      //sensors_data[i][7] = column_volume;
-                      i++;
-                      rows_of_data_other++;
-                      if(i>59){
-                          break;
-                      }
-                  }
-                  while (cursor_other.moveToNext());
-              }
-              if (cursor_other != null && !cursor_other.isClosed()) {
-                  Log.d("SENSORS_DATA_other","Saved data: " + rows_of_data_other);
-                  cursor_other.close();
-              }
-              if(rows_of_data_other<20) //don't do learning, not enough data
-              {
-                  continue;
-              }
+                microphone=sound_strength;
+                //label could be //'ear' 'table' 'other'
+                //for ear training!
+                //'ear'=0 'table'=1 'other'=2
+                int rows_of_data_ear = 0;
+                Cursor cursor_ear = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'ear'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                if (cursor_ear != null && cursor_ear.moveToFirst()) {
+                    int i = 0;
+                    do{
+                        final double column_r_value_0 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
+                        final double column_r_value_1 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
+                        final double column_r_value_2 = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
+                        final double column_lux = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.LUX));
+                        final double column_proximity = cursor_ear.getDouble(cursor_ear.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
 
-              //enough data, train  //sensors_data
-              svm_parameter para1 = new svm_parameter();
-              para1.svm_type = svm_parameter.C_SVC;
+                        //'ear'=0 'table'=1 'other'=2 label
+                        sensors_data[i][0] = 0;
+                        sensors_data[i][1] = column_r_value_0;
+                        sensors_data[i][2] = column_r_value_1;
+                        sensors_data[i][3] = column_r_value_2;
+                        sensors_data[i][4] = column_lux;
+                        sensors_data[i][5] = column_proximity;
+
+                        i++;
+                        rows_of_data_ear++;
+                        if(i>sample-1){
+                            break;
+                        }
+                    }
+                    while (cursor_ear.moveToNext());
+                }
+                if (cursor_ear != null && !cursor_ear.isClosed()) {
+                    Log.d("SENSORS_DATA_ear","Saved data: " + rows_of_data_ear);
+                    cursor_ear.close();
+                }
+                if(rows_of_data_ear<sample) //don't do learning, not enough data
+                {
+                    continue;
+                }
+                //label could be //'ear' 'table' 'other'
+                //for table training!
+                //'ear'=0 'table'=1 'other'=2
+                int rows_of_data_table = 0;
+                Cursor cursor_table = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'table'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                if (cursor_table != null && cursor_table.moveToFirst()) {
+                    int i = sample;
+                    do{
+                        final double column_r_value_0 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
+                        final double column_r_value_1 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
+                        final double column_r_value_2 = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
+                        final double column_lux = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.LUX));
+                        final double column_proximity = cursor_table.getDouble(cursor_table.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
+
+                        //'ear'=0 'table'=1 'other'=2 label
+                        sensors_data[i][0] = 1;
+                        sensors_data[i][1] = column_r_value_0;
+                        sensors_data[i][2] = column_r_value_1;
+                        sensors_data[i][3] = column_r_value_2;
+                        sensors_data[i][4] = column_lux;
+                        sensors_data[i][5] = column_proximity;
+                        i++;
+                        rows_of_data_table++;
+                        if(i>sample*2-1){
+                            break;
+                        }
+                    }
+                    while (cursor_table.moveToNext());
+                }
+                if (cursor_table != null && !cursor_table.isClosed()) {
+                    Log.d("SENSORS_DATA_table","Saved data: " + rows_of_data_table);
+                    cursor_table.close();
+                }
+                if(rows_of_data_table<sample) //don't do learning, not enough data
+                {
+                    continue;
+                }
+                //label could be //'ear' 'table' 'other'
+                //for other training!
+                int rows_of_data_other = 0;
+                Cursor cursor_other = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'other'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                if (cursor_other != null && cursor_other.moveToFirst()) {
+                    int i = 2*sample;
+                    do{
+                        final double column_r_value_0 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_0));
+                        final double column_r_value_1 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_1));
+                        final double column_r_value_2 = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.R_VALUES_2));
+                        final double column_lux = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.LUX));
+                        final double column_proximity = cursor_other.getDouble(cursor_other.getColumnIndex(Provider.Smart_Volume_Data.PROXIMITY));
+
+                        //'ear'=0 'table'=1 'other'=2 label
+                        sensors_data[i][0] = 2;
+                        sensors_data[i][1] = column_r_value_0;
+                        sensors_data[i][2] = column_r_value_1;
+                        sensors_data[i][3] = column_r_value_2;
+                        sensors_data[i][4] = column_lux;
+                        sensors_data[i][5] = column_proximity;
+
+                        i++;
+                        rows_of_data_other++;
+                        if(i>3*sample-1){
+                            break;
+                        }
+                    }
+                    while (cursor_other.moveToNext());
+                }
+                if (cursor_other != null && !cursor_other.isClosed()) {
+                    Log.d("SENSORS_DATA_other","Saved data: " + rows_of_data_other);
+                    cursor_other.close();
+                }
+                if(rows_of_data_other<sample) //don't do learning, not enough data
+                {
+                    continue;
+                }
+
+                //enough data, train  //sensors_data
+                svm_parameter para1 = new svm_parameter();
+                para1.svm_type = svm_parameter.C_SVC;
 			  /* svm_type
 			  public static final int C_SVC = 0;
 			  public static final int NU_SVC = 1;
 			  public static final int ONE_CLASS = 2;
 			  public static final int EPSILON_SVR = 3;
 			  public static final int NU_SVR = 4; */
-              para1.kernel_type = svm_parameter.LINEAR;
+                para1.kernel_type = svm_parameter.LINEAR;
         	  /*
 			  public static final int LINEAR = 0;
 			  public static final int POLY = 1;
 			  public static final int RBF = 2;
 			  public static final int SIGMOID = 3;
 			  public static final int PRECOMPUTED = 4;*/
-              para1.degree = 2;
-              //degree, for poly
-              para1.gamma = 0.0203;
-              // gamma,	for poly/rbf/sigmoid
-              para1.coef0 = 0;
-              //coef0, for poly/sigmoid
-              para1.cache_size = 300;
-              //cache_size; in MB
-              para1.C = 1;
-              //C, for C_SVC, EPSILON_SVR and NU_SVR
-              para1.eps = 1e-3;
-              //eps, stopping criteria
-              para1.nu = 0.1;
-              //nu; for NU_SVC, ONE_CLASS, and NU_SVR
-              para1.shrinking = 0;
-              //shrinking;	 use the shrinking heuristics
-              para1.probability = 0;
-              // probability,  do probability estimates
-              svm_problem prob1 = new svm_problem();
-              Log.d("sensors_data","sensors_data.length: " + sensors_data.length);
-              int dataCount = sensors_data.length;
-              prob1.y = new double[dataCount];
-              prob1.l = dataCount;
-              prob1.x = new svm_node[dataCount][];
+                para1.degree = 2;
+                //degree, for poly
+                para1.gamma = 0.0203;
+                // gamma,	for poly/rbf/sigmoid
+                para1.coef0 = 0;
+                //coef0, for poly/sigmoid
+                para1.cache_size = 300;
+                //cache_size; in MB
+                para1.C = 1;
+                //C, for C_SVC, EPSILON_SVR and NU_SVR
+                para1.eps = 1e-3;
+                //eps, stopping criteria
+                para1.nu = 0.1;
+                //nu; for NU_SVC, ONE_CLASS, and NU_SVR
+                para1.shrinking = 0;
+                //shrinking;	 use the shrinking heuristics
+                para1.probability = 0;
+                // probability,  do probability estimates
+                svm_problem prob1 = new svm_problem();
+                Log.d("sensors_data","sensors_data.length: " + sensors_data.length);
+                int dataCount = sensors_data.length;
+                prob1.y = new double[dataCount];
+                prob1.l = dataCount;
+                prob1.x = new svm_node[dataCount][];
 
-              for (int i = 0; i < dataCount; i++){
-                  double[] features = sensors_data[i];
-                  prob1.x[i] = new svm_node[features.length-1];
-                  for (int j = 1; j < features.length; j++){
-                      svm_node node = new svm_node();
-                      node.index = j;
-                      node.value = features[j];
-                      prob1.x[i][j-1] = node;
-                  }
-                  prob1.y[i] = features[0];
-              }
-              Log.d("sensors_data","so far so good" );
-              model = svm.svm_train(prob1, para1);
-              Log.d("sensors_data","model seems cool" );
-              svm_node node1 = new svm_node();
-              node1.index=1;
-              svm_node node2 = new svm_node();
-              node2.index=2;
-              svm_node node3 = new svm_node();
-              node3.index=3;
-              svm_node node4 = new svm_node();
-              node4.index=4;
-              svm_node node5 = new svm_node();
-              node5.index=5;
-              svm_node node6 = new svm_node();
-              node6.index=6;
-              node1.value=rotation_x;
-              node2.value=rotation_y;
-              node3.value=rotation_z;
-              node4.value=light;
-              node5.value=proximity;
-              node6.value=microphone;
-              //node7.value=volume;
-              svm_node[] pred = new svm_node[6];
-              pred[0]=node1;
-              pred[1]=node2;
-              pred[2]=node3;
-              pred[3]=node4;
-              pred[4]=node5;
-              pred[5]=node6;
-             // pred[6]=node7;
-              final double prediction = svm.svm_predict(model,pred);
-              Log.d("sensors_data","prediction: " +prediction);
-
-              int buffer_size = AudioRecord.getMinBufferSize(AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT ) * 10;
-              AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM), AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, buffer_size);
-
-              //Audio data buffer
-              short[] audio_data = new short[buffer_size];
-              double sound_strength=0;
-
-              if( recorder.getState() == AudioRecord.STATE_INITIALIZED ) {
-                  if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
-                      recorder.startRecording();
-                  }
-
-                  double now = System.currentTimeMillis();
-                  double elapsed = 0;
-                  while (elapsed < 700) {
-                      //wait...
-                      elapsed = System.currentTimeMillis() - now;
-                      //Log.d("audio", "Recording... " + elapsed / 1000 + " seconds");
-                  }
-                  recorder.stop();
-                  recorder.read(audio_data, 0, buffer_size);
+                for (int i = 0; i < dataCount; i++){
+                    double[] features = sensors_data[i];
+                    prob1.x[i] = new svm_node[features.length-1];
+                    for (int j = 1; j < features.length; j++){
+                        svm_node node = new svm_node();
+                        node.index = j;
+                        node.value = features[j];
+                        prob1.x[i][j-1] = node;
+                    }
+                    prob1.y[i] = features[0];
+                }
+                Log.d("sensors_data","so far so good318" );
+                model = svm.svm_train(prob1, para1);
+                Log.d("sensors_data","model seems cool" );
 
 
-                  if (audio_data.length != 0) {
-                      double amplitude = -1;
-                      for (short data : audio_data) {
-                          if (amplitude < data) {
-                              amplitude = data;
-                          }
-                      }
-                      Log.d("audio", "Recording... "+amplitude);
-                      if(amplitude>0)
-                          sound_strength=amplitude;
-                  }
-              }
-              final double noise =sound_strength;
+                svm_node node1 = new svm_node();
+                node1.index=1;
+                svm_node node2 = new svm_node();
+                node2.index=2;
+                svm_node node3 = new svm_node();
+                node3.index=3;
+                svm_node node4 = new svm_node();
+                node4.index=4;
+                svm_node node5 = new svm_node();
+                node5.index=5;
+
+                node1.value=rotation_x;
+                node2.value=rotation_y;
+                node3.value=rotation_z;
+                node4.value=light;
+                node5.value=proximity;
+
+                svm_node[] pred = new svm_node[5];
+                pred[0]=node1;
+                pred[1]=node2;
+                pred[2]=node3;
+                pred[3]=node4;
+                pred[4]=node5;
+
+                final double prediction = svm.svm_predict(model,pred);
+                String class_phone ="";
+                if(prediction<0.1)
+                {
+                    class_phone = "ear";
+                    //regression for ear
+                    double[][] train_ear = new double[sample][2];
+                    Cursor cursor_regression = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'ear'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                    if (cursor_regression != null && cursor_regression.moveToFirst()) {
+                        int i = 0;
+                        do{
+                            final double column_volume = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
+                            final double column_noise = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
+                            train_ear[i][0] = column_volume;
+                            train_ear[i][1] = column_noise;
+                            i++;
+                            if(i>sample-1){
+                                break;
+                            }
+                        }
+                        while (cursor_regression.moveToNext());
+                    }
+                    if (cursor_regression != null && !cursor_regression.isClosed()) {
+                        cursor_regression.close();
+                    }
+                    svm_parameter para_ear = new svm_parameter();
+                    para_ear.svm_type = svm_parameter.NU_SVR;
+			/* svm_type
+			public static final int C_SVC = 0;
+			public static final int NU_SVC = 1;
+			public static final int ONE_CLASS = 2;
+			public static final int EPSILON_SVR = 3;
+			public static final int NU_SVR = 4; */
+                    para_ear.kernel_type = svm_parameter.LINEAR;
+        	/*
+			public static final int LINEAR = 0;
+			public static final int POLY = 1;
+			public static final int RBF = 2;
+			public static final int SIGMOID = 3;
+			public static final int PRECOMPUTED = 4;*/
+                    para_ear.degree = 2;
+                    //degree, for poly
+                    para_ear.gamma = 0.0203;
+                    // gamma,	for poly/rbf/sigmoid
+                    para_ear.coef0 = 0;
+                    //coef0, for poly/sigmoid
+                    para_ear.cache_size = 100;
+                    //cache_size; in MB
+                    para_ear.C = 1;
+                    //C, for C_SVC, EPSILON_SVR and NU_SVR
+                    para_ear.eps = 1e-3;
+                    //eps, stopping criteria
+                    para_ear.nu = 1;
+                    //nu; for NU_SVC, ONE_CLASS, and NU_SVR
+                    para_ear.shrinking = 0;
+                    //shrinking;	 use the shrinking heuristics
+                    para_ear.probability = 0;
+                    // probability,  do probability estimates
+
+
+                    svm_problem prob_ear = new svm_problem();
+                    int dataCount_ear = train_ear.length;
+                    prob_ear.y = new double[dataCount_ear];
+                    prob_ear.l = dataCount_ear;
+                    prob_ear.x = new svm_node[dataCount_ear][];
+
+                    for (int i = 0; i < dataCount_ear; i++){
+                        double[] features = train_ear[i];
+                        prob_ear.x[i] = new svm_node[features.length-1];
+                        for (int j = 1; j < features.length; j++){
+                            svm_node node = new svm_node();
+                            node.index = j;
+                            node.value = features[j];
+                            prob_ear.x[i][j-1] = node;
+                        }
+                        prob_ear.y[i] = features[0];
+                    }
+
+                    svm_model model_ear = svm.svm_train(prob_ear, para_ear);
+                    svm_node node_ear = new svm_node();
+                    node_ear.index=1;
+                    node_ear.value=microphone;
+                    svm_node[] pred_ear = new svm_node[2];
+                    pred_ear[0]=node_ear;
+                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_ear,pred_ear);
+
+                }
+                else if(prediction>1.9)
+                {
+                    class_phone = "other";
+                    //regression for other
+                    double[][] train_other = new double[sample][2];
+                    Cursor cursor_regression = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'other'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                    if (cursor_regression != null && cursor_regression.moveToFirst()) {
+                        int i = 0;
+                        do{
+                            final double column_volume = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
+                            final double column_noise = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
+                            train_other[i][0] = column_volume;
+                            train_other[i][1] = column_noise;
+                            i++;
+
+                            if(i>sample-1){
+                                break;
+                            }
+                        }
+                        while (cursor_regression.moveToNext());
+                    }
+                    if (cursor_regression != null && !cursor_regression.isClosed()) {
+                        cursor_regression.close();
+                    }
+                    svm_parameter para_other = new svm_parameter();
+                    para_other.svm_type = svm_parameter.NU_SVR;
+			/* svm_type
+			public static final int C_SVC = 0;
+			public static final int NU_SVC = 1;
+			public static final int ONE_CLASS = 2;
+			public static final int EPSILON_SVR = 3;
+			public static final int NU_SVR = 4; */
+                    para_other.kernel_type = svm_parameter.LINEAR;
+        	/*
+			public static final int LINEAR = 0;
+			public static final int POLY = 1;
+			public static final int RBF = 2;
+			public static final int SIGMOID = 3;
+			public static final int PRECOMPUTED = 4;*/
+                    para_other.degree = 2;
+                    //degree, for poly
+                    para_other.gamma = 0.0203;
+                    // gamma,	for poly/rbf/sigmoid
+                    para_other.coef0 = 0;
+                    //coef0, for poly/sigmoid
+                    para_other.cache_size = 100;
+                    //cache_size; in MB
+                    para_other.C = 1;
+                    //C, for C_SVC, EPSILON_SVR and NU_SVR
+                    para_other.eps = 1e-3;
+                    //eps, stopping criteria
+                    para_other.nu = 1;
+                    //nu; for NU_SVC, ONE_CLASS, and NU_SVR
+                    para_other.shrinking = 0;
+                    //shrinking;	 use the shrinking heuristics
+                    para_other.probability = 0;
+                    // probability,  do probability estimates
+
+
+                    svm_problem prob_other = new svm_problem();
+                    int dataCount_other = train_other.length;
+                    prob_other.y = new double[dataCount_other];
+                    prob_other.l = dataCount_other;
+                    prob_other.x = new svm_node[dataCount_other][];
+
+                    for (int i = 0; i < dataCount_other; i++){
+                        double[] features = train_other[i];
+                        prob_other.x[i] = new svm_node[features.length-1];
+                        for (int j = 1; j < features.length; j++){
+                            svm_node node = new svm_node();
+                            node.index = j;
+                            node.value = features[j];
+                            prob_other.x[i][j-1] = node;
+                        }
+                        prob_other.y[i] = features[0];
+                    }
+
+                    svm_model model_other = svm.svm_train(prob_other, para_other);
+                    svm_node node_other = new svm_node();
+                    node_other.index=1;
+                    node_other.value=microphone;
+                    svm_node[] pred_other = new svm_node[2];
+                    pred_other[0]=node_other;
+                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_other,pred_other);
+                }
+                else
+                {
+                    class_phone = "table";
+                    //regression for table
+                    double[][] train_table = new double[sample][2];
+                    Cursor cursor_regression = getContentResolver().query(Provider.Smart_Volume_Data.CONTENT_URI, null, Provider.Smart_Volume_Data.LABEL + " = 'table'", null, Provider.Smart_Volume_Data.TIMESTAMP + " DESC LIMIT "+sample);
+                    if (cursor_regression != null && cursor_regression.moveToFirst()) {
+                        int i = 0;
+                        do{
+                            final double column_volume = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.VOLUME));
+                            final double column_noise = cursor_regression.getDouble(cursor_regression.getColumnIndex(Provider.Smart_Volume_Data.MICROPHONE));
+                            train_table[i][0] = column_volume;
+                            train_table[i][1] = column_noise;
+                            i++;
+                            if(i>sample-1){
+                                break;
+                            }
+                        }
+                        while (cursor_regression.moveToNext());
+                    }
+                    if (cursor_regression != null && !cursor_regression.isClosed()) {
+                        cursor_regression.close();
+                    }
+                    svm_parameter para_table = new svm_parameter();
+                    para_table.svm_type = svm_parameter.NU_SVR;
+			/* svm_type
+			public static final int C_SVC = 0;
+			public static final int NU_SVC = 1;
+			public static final int ONE_CLASS = 2;
+			public static final int EPSILON_SVR = 3;
+			public static final int NU_SVR = 4; */
+                    para_table.kernel_type = svm_parameter.LINEAR;
+        	/*
+			public static final int LINEAR = 0;
+			public static final int POLY = 1;
+			public static final int RBF = 2;
+			public static final int SIGMOID = 3;
+			public static final int PRECOMPUTED = 4;*/
+                    para_table.degree = 2;
+                    //degree, for poly
+                    para_table.gamma = 0.0203;
+                    // gamma,	for poly/rbf/sigmoid
+                    para_table.coef0 = 0;
+                    //coef0, for poly/sigmoid
+                    para_table.cache_size = 100;
+                    //cache_size; in MB
+                    para_table.C = 1;
+                    //C, for C_SVC, EPSILON_SVR and NU_SVR
+                    para_table.eps = 1e-3;
+                    //eps, stopping criteria
+                    para_table.nu = 1;
+                    //nu; for NU_SVC, ONE_CLASS, and NU_SVR
+                    para_table.shrinking = 0;
+                    //shrinking;	 use the shrinking heuristics
+                    para_table.probability = 0;
+                    // probability,  do probability estimates
+
+
+                    svm_problem prob_table = new svm_problem();
+                    int dataCount_table = train_table.length;
+                    prob_table.y = new double[dataCount_table];
+                    prob_table.l = dataCount_table;
+                    prob_table.x = new svm_node[dataCount_table][];
+
+                    for (int i = 0; i < dataCount_table; i++){
+                        double[] features = train_table[i];
+                        prob_table.x[i] = new svm_node[features.length-1];
+                        for (int j = 1; j < features.length; j++){
+                            svm_node node = new svm_node();
+                            node.index = j;
+                            node.value = features[j];
+                            prob_table.x[i][j-1] = node;
+                        }
+                        prob_table.y[i] = features[0];
+                    }
+
+                    svm_model model_table = svm.svm_train(prob_table, para_table);
+                    svm_node node_table = new svm_node();
+                    node_table.index=1;
+                    node_table.value=microphone;
+                    svm_node[] pred_table = new svm_node[2];
+                    pred_table[0]=node_table;
+                    class_phone=class_phone+ "; Good Vol is: "+ svm.svm_predict(model_table,pred_table);
+                }
+
+                Log.d("Results", "Mode: " + class_phone);
+
+                final String result=""+class_phone;
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Text_Output.setText(""+result);
+
+                    }
+                });
 
 
 
-              runOnUiThread(new Runnable() {
-                  @Override
-                  public void run() {
-                      Text_Microphone.setText(""+noise);
-
-
-                      Text_Output.setText(""+prediction);
-
-                  }
-              });
-
-              /*
-              //rotation
-                public static double rotation_x;
-                public static double rotation_y;
-                public static double rotation_z;
-                 //public static double rotation_cos;
-                public static long timestamp_rot;
-                //light
-                    public static double light;
-                    public static long timestamp_lig;
-                    //proximity
-                    public static double proximity;
-                 public static long timestamp_prx;
-    //microphone
-    public static double microphone;
-    //volume
-    public static int volume;
-    public static long timestamp_vol;
-               */
-
-
-
-
-
-
-
-              //send to machine learning
-                  //train SVM
-
-
-
-              try {
-                  Thread.currentThread().sleep(1000);
-                  Thread.currentThread().yield();
-              } catch (InterruptedException e) {
-                  e.printStackTrace();
-              }
-          }
+/*
+                try {
+                    Thread.currentThread().sleep(1000);
+                    Thread.currentThread().yield();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }*/
+            }
 
 
 
@@ -558,7 +780,7 @@ public class MainActivity extends ActionBarActivity {
                 if (checked)
 
                     label = "ear";
-                    break;
+                break;
             case R.id.table:
                 if (checked)
                     label = "table";
@@ -601,8 +823,6 @@ public class MainActivity extends ActionBarActivity {
     private ContextReceiver contextBR = new ContextReceiver();
     public class ContextReceiver extends BroadcastReceiver {
 
-
-
         @Override
         public void onReceive(Context context, Intent intent) {
             //Sensors Data
@@ -610,7 +830,7 @@ public class MainActivity extends ActionBarActivity {
             //Get the raw data
             //Accelerometer data
             if (intent.getAction().equals(Accelerometer.ACTION_AWARE_ACCELEROMETER)) {
-                Log.d("SENSORS", "Received accelerometer data");
+                //Log.d("SENSORS", "Received accelerometer data");
                 ContentValues acc_data = (ContentValues) intent.getParcelableExtra(Accelerometer.EXTRA_DATA);
                 acc_x = acc_data.getAsDouble("double_values_0");
                 acc_y = acc_data.getAsDouble("double_values_1");
@@ -620,7 +840,7 @@ public class MainActivity extends ActionBarActivity {
             }
             //Rotation data
             else if (intent.getAction().equals(Rotation.ACTION_AWARE_ROTATION)) {
-                Log.d("SENSORS", "Received rotation data");
+                //Log.d("SENSORS", "Received rotation data");
                 ContentValues rotation_data = (ContentValues) intent.getParcelableExtra(Rotation.EXTRA_DATA);
                 rotation_x = rotation_data.getAsDouble("double_values_0");
                 rotation_y = rotation_data.getAsDouble("double_values_1");
@@ -630,39 +850,39 @@ public class MainActivity extends ActionBarActivity {
                 rot_cache = true;
             }
             else if (intent.getAction().equals(Light.ACTION_AWARE_LIGHT)) {
-                Log.d("SENSORS", "Received light data");
+                //Log.d("SENSORS", "Received light data");
                 //Light
                 ContentValues light_data = (ContentValues) intent.getParcelableExtra(Light.EXTRA_DATA);
                 if (light_data != null) {
-                    Log.d("SENSORS", "Light sensor AVAILABLE");
+                    //Log.d("SENSORS", "Light sensor AVAILABLE");
                     light = light_data.getAsDouble("double_light_lux");
                     timestamp_lig = (long) light_data.get("timestamp");
                     light_cache = true;
                 } else {
-                    Log.d("SENSORS", "Light sensor UNAVAILABLE");
+                    //Log.d("SENSORS", "Light sensor UNAVAILABLE");
                     light = 0;
                 }
             }
             //Proximity
             else if (intent.getAction().equals(Proximity.ACTION_AWARE_PROXIMITY)) {
-                Log.d("SENSORS", "Received proximity data");
+                //Log.d("SENSORS", "Received proximity data");
                 ContentValues proximity_data = (ContentValues) intent.getParcelableExtra(Proximity.EXTRA_DATA);
                 if (proximity_data != null) {
-                    Log.d("SENSORS", "Proximity sensor AVAILABLE");
+                    //Log.d("SENSORS", "Proximity sensor AVAILABLE");
                     proximity = proximity_data.getAsDouble("double_proximity");
                     timestamp_prx = (long) proximity_data.get("timestamp");
                     prox_cache = true;
                 } else {
-                    proximity = 0;
-                    Log.d("SENSORS", "Proximity sensor UNAVAILABLE");
+                    proximity = 100;
+                    //Log.d("SENSORS", "Proximity sensor UNAVAILABLE");
                 }
             }
-            microphone = 0;
+
             volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
 
             // If I have a new sample in all sensors do a cache => synchronize to the slowest sensor
             if (acc_cache && rot_cache /*&& prox_cache*/ && light_cache && isPlayed) {
-                Log.d("SENSORS", "Updating database");
+                //Log.d("SENSORS", "Updating database");
                 acc_cache = false;
                 rot_cache = false;
                 prox_cache = false;
@@ -698,7 +918,7 @@ public class MainActivity extends ActionBarActivity {
                     Text_R_values_2.setText("" + rotation_z);
                     Text_Lux.setText("" + light);
                     Text_Proximity.setText("" + proximity);
-                    //Text_Microphone.setText("" + microphone);
+                    Text_Microphone.setText("" + microphone);
                     Text_Volume.setText("" + volume);
                     //Text_Output.setText("0");
 

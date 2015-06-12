@@ -88,8 +88,8 @@
         android:text="Medium Text"
         android:id="@+id/Volume"
         android:layout_below="@+id/Microphone"
-        android:layout_alignRight="@+id/Microphone"
-        android:layout_alignEnd="@+id/Microphone"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:textColor="#ff375fff" />
 
     <TextView
@@ -99,8 +99,8 @@
         android:text="Medium Text"
         android:id="@+id/Output"
         android:layout_below="@+id/Volume"
-        android:layout_alignRight="@+id/Volume"
-        android:layout_alignEnd="@+id/Volume"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:textColor="#ff375fff" />
 
     <RadioGroup
