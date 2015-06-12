@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="aware-core-3.4.4">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/app/build/intermediates/exploded-aar/com.awareframework/aware-core/3.4.4/res" />
+      <root url="jar://$PROJECT_DIR$/app/build/intermediates/exploded-aar/com.awareframework/aware-core/3.4.4/jars/libs/zbar.jar!/" />
+      <root url="jar://$PROJECT_DIR$/app/build/intermediates/exploded-aar/com.awareframework/aware-core/3.4.4/jars/libs/org.eclipse.paho.client.mqttv3-1.0.2.jar!/" />
+      <root url="jar://$PROJECT_DIR$/app/build/intermediates/exploded-aar/com.awareframework/aware-core/3.4.4/jars/classes.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
